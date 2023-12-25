@@ -14,7 +14,7 @@
         "ws": "ws://127.0.0.1:10546",
         "internalRpc": "http://127.0.0.1:10545",
         "internalWs": "ws://127.0.0.1:10546",
-        "networkId": 9898,
+        "networkId": 989898,
         "epoch": 900,
         "blockTime": 2,
         "reward": 250,
@@ -32,9 +32,9 @@
     "db": {
         "uri": "mongodb://localhost:27017/governance"
     },
-    "explorerUrl": "http://vscan.tforce.cc",
-    "tomoscanUrl": "http://vscan.tforce.cc",
-    "baseUrl": "http://vmaster.tforce.cc",
+    "explorerUrl": "http://vscan.lukaz.xyz",
+    "tomoscanUrl": "http://vscan.lukaz.xyz",
+    "baseUrl": "http://vmaster.lukaz.xyz",
     "truffle": {
         "mnemonic": "",
         "minCandidateCap": "50000000000000000000000",

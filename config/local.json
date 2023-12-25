@@ -22,15 +22,17 @@
         "masternodeRewardRate": 40,
         "foundationRewardRate": 10,
         "gas": 2000000,
+        "blockSignerGap": 15,
+        "blockSignerDelay": 5,
         "foundationAddress": "0x0000000000000000000000000000000000000068",
         "validatorAddress": "0x0000000000000000000000000000000000000088",
         "blockSignerAddress": "0x0000000000000000000000000000000000000089",
         "randomizeAddress": "0x0000000000000000000000000000000000000090"
     },
     "db": {
-        "uri": "mongodb://127.0.0.1:27017/governance"
+        "uri": "mongodb://localhost:27017/governance"
     },
-    "explorerUrl": "http://127.0.0.1:3000",
+    "explorerUrl": "http://vscan.tforce.cc",
     "tomoscanUrl": "http://vscan.tforce.cc",
     "baseUrl": "http://vmaster.tforce.cc",
     "truffle": {

@@ -692,17 +692,12 @@ router.get('/:candidate/:owner/getRewards', [
         let masternodesRW = []
 
         const total = db.Status.estimatedDocumentCount({
-            candidate: candidate,
-            epoch: {
-                $lte: currentEpoch - 2
-            }
+            candidate: candidate
         })
 
         const epochData = await db.Status.find({
-            candidate: candidate,
-            epoch: {
-                $lte: currentEpoch - 2
-            }
+            candidate: candidate
+
         }).sort({ epoch: -1 }).limit(limit).skip(skip).lean().exec()
         let masternodesEpochs = []
 
@@ -713,6 +708,7 @@ router.get('/:candidate/:owner/getRewards', [
         })
 
         let masternodes = epochData.filter(e => e.status === 'MASTERNODE')
+
         const rewards = await axios.get(
             urljoin(
                 config.get('tomoscanUrl'),
@@ -737,7 +733,7 @@ router.get('/:candidate/:owner/getRewards', [
                 } else {
                     r.rewardTime = r.timestamp * 1000
                 }
-                if (currentEpoch - r.epoch < 2) {
+                if (currentEpoch - r.epoch < 1) {
                     r.masternodeReward = '-'
                     r.reward = '-'
                     r.signNumber = '-'

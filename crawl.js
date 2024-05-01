@@ -265,47 +265,79 @@ async function updateSignerPenAndStatus () {
         const blk = await web3.eth.getBlock(latestCheckpoint)
         const signers = []
         const penalties = []
+        let candidateBulkOps = []
+        let statusBulkOps = []
+
         // get candidate list
         const candidates = await db.Candidate.find({
             smartContractAddress: config.get('blockchain.validatorAddress'),
             candidate: {
                 $ne: 'RESIGNED'
             }
-        })
-        // loop and get status
-        await Promise.all(candidates.map(async (c) => {
-            const data = {
-                'jsonrpc': '2.0',
-                'method': 'eth_getCandidateStatus',
-                'params': [c.candidate.toLowerCase(), 'latest'],
-                'id': config.get('blockchain.networkId')
+        },
+        {
+            candidate: 1,
+            status: 1
+        }
+        )
+        const onchainCandidateParams = {
+            'jsonrpc': '2.0',
+            'method': 'eth_getCandidates',
+            'params': ['latest'],
+            'id': config.get('blockchain.networkId')
+        }
+        const response = await axios.post(config.get('blockchain.rpc'), onchainCandidateParams)
+        if (response.data && response.data.result) {
+            const allCandidates = response.data.result.candidates
+            if (!allCandidates || allCandidates.length === 0) {
+                logger.error('no onchain candidate found')
+                return
             }
-            const response = await axios.post(config.get('blockchain.rpc'), data)
-
-            if (response.data) {
-                const result = (response.data.result || {}).status
-                switch (result) {
+            logger.info(`Onchain candidates length`, Object.keys(allCandidates).length)
+            logger.info(`Database candidates candidates`, candidates.length)
+            for (const c of candidates) {
+                const thisCandidate = allCandidates[ethUtils.toChecksumAddress(c.candidate)]
+                if (!thisCandidate) {
+                    continue
+                }
+                switch (thisCandidate.status) {
                 case 'MASTERNODE':
                     signers.push(c.candidate)
-                    await db.Candidate.findOneAndUpdate({
-                        smartContractAddress: config.get('blockchain.validatorAddress'),
-                        candidate: c.candidate.toLowerCase()
-                    }, {
-                        $set: {
-                            status: 'MASTERNODE'
+                    candidateBulkOps.push({
+                        updateOne: {
+                            filter: {
+                                smartContractAddress: config.get('blockchain.validatorAddress'),
+                                candidate: c.candidate.toLowerCase()
+                            },
+                            update: {
+                                $set: {
+                                    status: 'MASTERNODE'
+                                }
+                            },
+                            upsert: true
                         }
-                    }, { upsert: true })
-                    await db.Status.findOneAndUpdate({ epoch: currentEpoch, candidate: c.candidate }, {
-                        epoch: currentEpoch,
-                        candidate: c.candidate,
-                        status: 'MASTERNODE',
-                        epochCreatedAt: moment.unix(blk.timestamp).utc()
-                    }, { upsert: true })
+                    })
+                    statusBulkOps.push({
+                        updateOne: {
+                            filter: {
+                                epoch: parseInt(currentEpoch), candidate: c.candidate.toLowerCase()
+                            },
+                            update: {
+                                $set: {
+                                    epoch: parseInt(currentEpoch),
+                                    candidate: c.candidate.toLowerCase(),
+                                    status: 'MASTERNODE',
+                                    epochCreatedAt: moment.unix(blk.timestamp).utc()
+                                }
+                            },
+                            upsert: true
+                        }
+                    })
                     break
                 case 'SLASHED':
                     logger.info('Update candidate %s slashed at blockNumber %s', c.candidate, String(blk.number))
                     // fireNotification
-                    if (result.toLowerCase() !== c.status.toLowerCase()) {
+                    if (thisCandidate.status.toLowerCase() !== c.status.toLowerCase()) {
                         // get all voters who have capacity > 0
                         const voters = await db.Voter.find({
                             candidate: c.candidate,
@@ -318,54 +350,95 @@ async function updateSignerPenAndStatus () {
                             }))
                         }
                     }
-
-                    db.Candidate.findOneAndUpdate({
-                        smartContractAddress: config.get('blockchain.validatorAddress'),
-                        candidate: c.candidate.toLowerCase()
-                    }, {
-                        $set: {
-                            status: 'SLASHED'
-                        }
-                    }, { upsert: true }).then(() => true)
-                        .catch(error => console.log(error))
-
-                    db.Status.findOneAndUpdate({ epoch: currentEpoch, candidate: c.candidate }, {
-                        epoch: currentEpoch,
-                        candidate: c.candidate,
-                        status: 'SLASHED',
-                        epochCreatedAt: moment.unix(blk.timestamp).utc()
-                    }, { upsert: true }).then(() => true)
-                        .catch(error => console.log(error))
                     penalties.push(c.candidate)
+
+                    candidateBulkOps.push({
+                        updateOne: {
+                            filter: {
+                                smartContractAddress: config.get('blockchain.validatorAddress'),
+                                candidate: c.candidate.toLowerCase()
+                            },
+                            update: {
+                                $set: {
+                                    status: 'SLASHED'
+                                }
+                            },
+                            upsert: true
+                        }
+                    })
+
+                    statusBulkOps.push({
+                        updateOne: {
+                            filter: {
+                                epoch: parseInt(currentEpoch), candidate: c.candidate.toLowerCase()
+                            },
+                            update: {
+                                $set: {
+                                    epoch: parseInt(currentEpoch),
+                                    candidate: c.candidate.toLowerCase(),
+                                    status: 'SLASHED',
+                                    epochCreatedAt: moment.unix(blk.timestamp).utc()
+                                }
+                            },
+                            upsert: true
+                        }
+                    })
                     break
                 case 'PROPOSED':
-                    await db.Candidate.findOneAndUpdate({
-                        smartContractAddress: config.get('blockchain.validatorAddress'),
-                        candidate: c.candidate.toLowerCase()
-                    }, {
-                        $set: {
-                            status: 'PROPOSED'
+                    candidateBulkOps.push({
+                        updateOne: {
+                            filter: {
+                                smartContractAddress: config.get('blockchain.validatorAddress'),
+                                candidate: c.candidate.toLowerCase()
+                            },
+                            update: {
+                                $set: {
+                                    status: 'PROPOSED'
+                                }
+                            },
+                            upsert: true
                         }
-                    }, { upsert: true })
-                    await db.Status.findOneAndUpdate({ epoch: currentEpoch, candidate: c.candidate }, {
-                        epoch: currentEpoch,
-                        candidate: c.candidate,
-                        status: 'PROPOSED',
-                        epochCreatedAt: moment.unix(blk.timestamp).utc()
-                    }, { upsert: true })
+                    })
+
+                    statusBulkOps.push({
+                        updateOne: {
+                            filter: {
+                                epoch: parseInt(currentEpoch), candidate: c.candidate.toLowerCase()
+                            },
+                            update: {
+                                $set: {
+                                    epoch: parseInt(currentEpoch),
+                                    candidate: c.candidate.toLowerCase(),
+                                    status: 'PROPOSED',
+                                    epochCreatedAt: moment.unix(blk.timestamp).utc()
+                                }
+                            },
+                            upsert: true
+                        }
+                    })
                     break
                 default:
                     break
                 }
             }
-        }))
+        }
+
+        if (candidateBulkOps.length > 0) {
+            const res = await db.Candidate.collection.bulkWrite(candidateBulkOps)
+            logger.debug(`Update candidates at block ${blk.number}, result ${JSON.stringify(res)}`)
+        }
+        if (statusBulkOps.length > 0) {
+            const res = await db.Status.collection.bulkWrite(statusBulkOps)
+            logger.debug(`Update statuses at block ${blk.number}, result ${JSON.stringify(res)}`)
+        }
+
         await db.Signer.findOneAndUpdate({ blockNumber: blk.number }, {
             networkId: config.get('blockchain.networkId'),
             blockNumber: blk.number,
             signers: signers
         }, { upsert: true })
 
-        await db.Penalty.update({ epoch: currentEpoch }, {
+        await db.Penalty.updateOne({ epoch: currentEpoch }, {
             networkId: config.get('blockchain.networkId'),
             blockNumber: blk.number,
             epoch: currentEpoch,
@@ -565,7 +638,7 @@ async function updateLatestSignedBlock (blk) {
     try {
         if (!blk ||
             blk.number % parseInt(config.get('blockchain.blockSignerGap')) !==
-                parseInt(config.get('blockchain.blockSignerDelay'))
+            parseInt(config.get('blockchain.blockSignerDelay'))
         ) {
             return
         }
@@ -590,7 +663,7 @@ async function updateLatestSignedBlock (blk) {
 
         if (bulkOps.length > 0) {
             const res = await db.Candidate.collection.bulkWrite(bulkOps)
-            logger.debug(`UpdatelatestSignedBlock at block ${blk.number}, result ${res}`)
+            logger.debug(`UpdatelatestSignedBlock at block ${blk.number}, result ${JSON.stringify(res)}`)
         }
     } catch (e) {
         logger.error('updateLatestSignedBlock %s', e)

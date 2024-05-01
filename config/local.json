@@ -10,8 +10,8 @@
         "https://swagger.tomochain.com"
     ],
     "blockchain": {
-        "rpc": "http://127.0.0.1:10545",
-        "ws": "ws://127.0.0.1:10546",
+        "rpc": "https://rpc.viction-devnet.tforce.dev",
+        "ws": "https://wss.viction-devnet.tforce.dev",
         "internalRpc": "http://127.0.0.1:10545",
         "internalWs": "ws://127.0.0.1:10546",
         "networkId": 989898,
@@ -32,9 +32,9 @@
     "db": {
         "uri": "mongodb://localhost:27017/governance"
     },
-    "explorerUrl": "http://vscan.lukaz.xyz",
-    "tomoscanUrl": "http://vscan.lukaz.xyz",
-    "baseUrl": "http://vmaster.lukaz.xyz",
+    "explorerUrl": "https://scan.viction-devnet.tforce.dev",
+    "tomoscanUrl": "https://scan.viction-devnet.tforce.dev",
+    "baseUrl": "https://master.viction-devnet.tforce.dev",
     "truffle": {
         "mnemonic": "",
         "minCandidateCap": "50000000000000000000000",
